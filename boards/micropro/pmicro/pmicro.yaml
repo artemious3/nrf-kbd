@@ -1,0 +1,10 @@
+identifier: pmicro/nrf52840
+name: micro_pro
+vendor: micropro
+type: mcu
+arch: arm
+ram: 256
+flash: 472
+toolchain:
+  - zephyr
+supported: []

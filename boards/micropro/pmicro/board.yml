@@ -1,0 +1,6 @@
+board:
+  name: pmicro
+  full_name: pmicro
+  vendor: micropro
+  socs:
+    - name: nrf52840

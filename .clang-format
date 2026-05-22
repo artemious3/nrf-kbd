@@ -1,0 +1,63 @@
+# Full description is located here: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+
+BasedOnStyle: Microsoft
+UseTab: Never
+IndentWidth: 4
+BreakBeforeBraces: Allman
+AllowShortIfStatementsOnASingleLine: false
+ColumnLimit: 120
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# Aligns
+## Align newlines
+AlignEscapedNewlines: DontAlign
+AlignTrailingComments: true
+## Don't align macros definition
+# AlignConsecutiveMacros: AcrossEmptyLines
+AlignConsecutiveMacros: true
+## Don't align variables definition
+# AlignConsecutiveDeclarations: false
+## Using one tab width for align new line (not for open bracket)
+AlignAfterOpenBracket: DontAlign
+PointerAlignment: Left
+
+SpaceBeforeAssignmentOperators: true
+IndentCaseLabels: true
+
+# Setting include priorities
+IncludeCategories:
+  - Regex:           '"unity.h"'
+    Priority:        1
+  - Regex:           '<xdc/cfg/global.h>'
+    Priority:        11
+  - Regex:           '<xdc/std.h>'
+    Priority:        11
+  # .c.h files, that uses codegenerated types
+  - Regex:           '".*\.c\.h"'
+    Priority:        101
+  - Regex:           '<x.*\.h>'
+    Priority:        36
+  - Regex:           '"x.*\.h"'
+    Priority:        36
+  - Regex:           '".*"'
+    Priority:        31
+  - Regex:           '<.*>'
+    Priority:        41
+IncludeBlocks: Regroup
+
+# Force newline after "template <typename T...>"
+AlwaysBreakTemplateDeclarations: Yes
+
+# For prevent clang-format from adding a single semicolon to a new line
+# Use  // clang-format off and then // clang-format on around your block of code for constructions while();
+# Or use 2 next lines fo construction while(){}
+# https://stackoverflow.com/questions/43198429/how-to-prevent-clang-format-from-adding-a-single-semicolon-to-a-new-line/56622061#56622061
+# AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: true
+
+# For #defines
+# 1) Write comments above #define or
+# 2) Use  // clang-format off and then // clang-format on around your block of code
+
+# You can set indent width for line continuations(tabs)
+ContinuationIndentWidth: 4
