@@ -52,8 +52,8 @@
 
 #define ADV_LED_BLINK_INTERVAL  1000
 
-#define ADV_STATUS_LED DK_LED2
-#define CON_STATUS_LED DK_LED1
+#define ADV_STATUS_LED DK_LED1
+#define CON_STATUS_LED DK_LED2
 #define LED_CAPS_LOCK  DK_LED3
 #define NFC_LED	       DK_LED4
 #define KEY_TEXT_MASK  DK_BTN1_MSK
@@ -986,11 +986,9 @@ int main(void)
 
 	for (;;) {
 		if (is_adv) {
-			// dk_set_led(ADV_STATUS_LED, (++blink_status) % 2);
-            printk("ADV_STATUS_LED%d\n", (++blink_status) % 2);
+			dk_set_led(ADV_STATUS_LED, (++blink_status) % 2);
 		} else {
-			// dk_set_led_off(ADV_STATUS_LED);
-            printk("offADV_STATUS_LED\n");
+			dk_set_led_off(ADV_STATUS_LED);
 		}
 		k_sleep(K_MSEC(ADV_LED_BLINK_INTERVAL));
 		/* Battery level simulation */

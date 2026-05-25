@@ -2534,7 +2534,7 @@
 /* Generic property macros: */
 #define DT_N_S_leds_S_led_0_P_gpios_IDX_0_EXISTS 1
 #define DT_N_S_leds_S_led_0_P_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
-#define DT_N_S_leds_S_led_0_P_gpios_IDX_0_VAL_pin 26
+#define DT_N_S_leds_S_led_0_P_gpios_IDX_0_VAL_pin 15
 #define DT_N_S_leds_S_led_0_P_gpios_IDX_0_VAL_pin_EXISTS 1
 #define DT_N_S_leds_S_led_0_P_gpios_IDX_0_VAL_flags 0
 #define DT_N_S_leds_S_led_0_P_gpios_IDX_0_VAL_flags_EXISTS 1
@@ -2549,11 +2549,11 @@
 #define DT_N_S_leds_S_led_0_P_gpios_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_leds_S_led_0, gpios, 0, __VA_ARGS__)
 #define DT_N_S_leds_S_led_0_P_gpios_LEN 1
 #define DT_N_S_leds_S_led_0_P_gpios_EXISTS 1
-#define DT_N_S_leds_S_led_0_P_label "Green LED 0"
-#define DT_N_S_leds_S_led_0_P_label_STRING_UNQUOTED Green LED 0
-#define DT_N_S_leds_S_led_0_P_label_STRING_TOKEN Green_LED_0
-#define DT_N_S_leds_S_led_0_P_label_STRING_UPPER_TOKEN GREEN_LED_0
-#define DT_N_S_leds_S_led_0_P_label_IDX_0 "Green LED 0"
+#define DT_N_S_leds_S_led_0_P_label "Red LED 0"
+#define DT_N_S_leds_S_led_0_P_label_STRING_UNQUOTED Red LED 0
+#define DT_N_S_leds_S_led_0_P_label_STRING_TOKEN Red_LED_0
+#define DT_N_S_leds_S_led_0_P_label_STRING_UPPER_TOKEN RED_LED_0
+#define DT_N_S_leds_S_led_0_P_label_IDX_0 "Red LED 0"
 #define DT_N_S_leds_S_led_0_P_label_IDX_0_EXISTS 1
 #define DT_N_S_leds_S_led_0_P_label_FOREACH_PROP_ELEM(fn) fn(DT_N_S_leds_S_led_0, label, 0)
 #define DT_N_S_leds_S_led_0_P_label_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_leds_S_led_0, label, 0)
