@@ -1,0 +1,20 @@
+{
+  "toolchainPath": "c:\\ncs\\toolchains\\936afb6332",
+  "sdkPath": "d:\\WORK_NRF\\ncs\\v3.3.0",
+  "board": "pmicro/nrf52840",
+  "boardDir": "d:\\WORK_NRF\\test_kbd\\test1\\boards\\micropro\\pmicro",
+  "boardDirs": [
+    "d:\\WORK_NRF\\test_kbd\\test1\\boards\\micropro\\pmicro"
+  ],
+  "optimizations": "debug",
+  "cmakeArgs": [],
+  "confFiles": [
+    "prj.conf"
+  ],
+  "buildDirectory": "build",
+  "kconfigFragments": [],
+  "snippets": [],
+  "dtcOverlays": [],
+  "extraDtcOverlays": [],
+  "boardRoot": "d:\\WORK_NRF\\test_kbd\\test1"
+}

@@ -1,0 +1,13 @@
+# Target labels
+ test1
+# Source files and their labels
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/CMakeFiles/test1
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/CMakeFiles/test1.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/CMakeFiles/test1-complete.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-build.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-configure.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-download.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-install.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-mkdir.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-patch.rule
+D:/WORK_NRF/test_kbd/test1/build/_sysbuild/sysbuild/images/test1-prefix/src/test1-stamp/test1-update.rule

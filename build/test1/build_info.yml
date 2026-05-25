@@ -1,0 +1,54 @@
+cmake:
+  application:
+    configuration-dir: 'D:/WORK_NRF/test_kbd/test1'
+    source-dir: 'D:/WORK_NRF/test_kbd/test1'
+  board:
+    name: 'pmicro'
+    path:
+     - 'D:/WORK_NRF/test_kbd/test1/boards/micropro/pmicro'
+    qualifiers: 'nrf52840'
+    revision: ''
+  devicetree:
+    bindings-dirs:
+     - 'D:/WORK_NRF/ncs/v3.3.0/nrf/dts/bindings'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/bindings'
+    files:
+     - 'D:/WORK_NRF/test_kbd/test1/boards/micropro/pmicro/pmicro.dts'
+    include-dirs:
+     - 'D:/WORK_NRF/ncs/v3.3.0/nrf/include'
+     - 'D:/WORK_NRF/ncs/v3.3.0/nrf/dts/common'
+     - 'D:/WORK_NRF/ncs/v3.3.0/nrf/dts/riscv'
+     - 'D:/WORK_NRF/ncs/v3.3.0/nrf/dts/arm'
+     - 'D:/WORK_NRF/ncs/v3.3.0/nrf/dts'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/include'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/include/zephyr'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/common'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/vendor'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/rx'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/x86'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/xtensa'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/sparc'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/riscv'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/posix'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/arm64'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/arm'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts/arc'
+     - 'D:/WORK_NRF/ncs/v3.3.0/zephyr/dts'
+  kconfig:
+    files:
+     - 'D:/WORK_NRF/test_kbd/test1/boards/micropro/pmicro/pmicro_defconfig'
+     - 'D:/WORK_NRF/test_kbd/test1/prj.conf'
+     - 'D:/WORK_NRF/test_kbd/test1/build/test1/zephyr/misc/generated/extra_kconfig_options.conf'
+     - 'D:/WORK_NRF/test_kbd/test1/build/test1/zephyr/.config.sysbuild'
+    user-files:
+     - 'prj.conf'
+  toolchain:
+    name: 'zephyr'
+    path: 'C:/ncs/toolchains/936afb6332/opt/zephyr-sdk'
+  vendor-specific:
+    nordic:
+      svdfile: 'D:/WORK_NRF/ncs/v3.3.0/modules/hal/nordic/nrfx/bsp/stable/mdk/nrf52840.svd'
+  zephyr:
+    version: '4.3.99'
+    zephyr-base: 'D:/WORK_NRF/ncs/v3.3.0/zephyr'
+version: '0.1.0'

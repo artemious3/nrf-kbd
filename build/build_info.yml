@@ -1,0 +1,25 @@
+cmake:
+  application:
+    source-dir: 'D:/WORK_NRF/ncs/v3.3.0/zephyr/share/sysbuild'
+  board:
+    name: 'pmicro'
+    path:
+     - 'D:/WORK_NRF/test_kbd/test1/boards/micropro/pmicro'
+    qualifiers: 'nrf52840'
+    revision: ''
+  images:
+   - name: 'test1'
+     source-dir: 'D:/WORK_NRF/test_kbd/test1'
+     type: 'MAIN'
+  kconfig:
+    files:
+     - 'D:/WORK_NRF/test_kbd/test1/build/_sysbuild/empty.conf'
+     - 'D:/WORK_NRF/test_kbd/test1/build/_sysbuild/empty.conf'
+    user-files:
+     - 'D:/WORK_NRF/test_kbd/test1/build/_sysbuild/empty.conf'
+  sysbuild: 'true'
+version: '0.1.0'
+west:
+  command: 'C:\ncs\toolchains\936afb6332\opt\bin\Scripts\west build --build-dir d:/WORK_NRF/test_kbd/test1/build d:/WORK_NRF/test_kbd/test1 --pristine --board pmicro/nrf52840 --cmake-only -- -DCONFIG_DEBUG_OPTIMIZATIONS=y -DCONF_FILE=prj.conf -DBOARD_ROOT=d:/work_nrf/test_kbd/test1'
+  topdir: 'd:\WORK_NRF\ncs\v3.3.0'
+  version: '1.5.0'
