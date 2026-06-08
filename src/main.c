@@ -50,7 +50,7 @@
 #define KEYS_MAX_LEN                    (INPUT_REPORT_KEYS_MAX_LEN - \
 					SCAN_CODE_POS)
 
-#define ADV_LED_BLINK_INTERVAL  1000
+#define ADV_LED_BLINK_INTERVAL  2000
 
 #define ADV_STATUS_LED DK_LED1
 #define CON_STATUS_LED DK_LED2
@@ -947,6 +947,7 @@ int main(void)
     int blink_status = 0;
 
     configure_gpio();
+	dk_set_led(1, 0); // DK_LED2
 
     printk("Starting Bluetooth Peripheral HIDS keyboard sample\n");
 	err = bt_conn_auth_cb_register(&conn_auth_callbacks);
@@ -993,5 +994,14 @@ int main(void)
 		k_sleep(K_MSEC(ADV_LED_BLINK_INTERVAL));
 		/* Battery level simulation */
 		bas_notify();
+
+		static uint8_t cnt = 0;
+		if (cnt == 10)
+		{
+			cnt = 0;
+			dk_set_led_off(ADV_STATUS_LED);
+			NRF_POWER->SYSTEMOFF=1;
+		}
+		cnt++;
 	}
 }
