@@ -1,7 +1,0 @@
-default: test1
-build_dir: D:/WORK_NRF/test_kbd/test1/build
-domains:
-  - name: test1
-    build_dir: D:/WORK_NRF/test_kbd/test1/build/test1
-flash_order:
-  - test1

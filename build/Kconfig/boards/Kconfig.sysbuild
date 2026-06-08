@@ -1,2 +1,0 @@
-# Load Sysbuild board Kconfig descriptions.
-osource "D:/WORK_NRF/test_kbd/test1/boards/micropro/pmicro/Kconfig.sysbuild"
