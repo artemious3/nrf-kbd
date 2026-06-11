@@ -1,0 +1,14 @@
+// / {
+//     chosen {
+//         /delete-property/ zephyr,console;
+//     };
+// };
+
+/* Disable all unneeded peripherals to reduce power consumption */
+&uart0 { status = "disabled"; };
+// &uart0 { status = "okay"; };
+&usbd { status = "disabled"; };
+&adc { status = "disabled"; };
+&nfct { status = "disabled"; };
+&pwm0 { status = "disabled"; };
+&ieee802154 { status = "disabled"; };
