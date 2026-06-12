@@ -9,7 +9,6 @@
  */
 
 #include "hal/nrf_gpiote.h"
-#include "zephyr/bluetooth/gap.h"
 #include "zephyr/drivers/gpio.h"
 #include "zephyr/drivers/timer/system_timer.h"
 #include "zephyr/irq.h"
@@ -50,7 +49,7 @@
 #define CON_STATUS_LED DK_LED2
 #define ADV_LED_BLINK_INTERVAL 2000
 
-static void configure_leds(void)
+static int configure_leds(void)
 {
     int err;
 
@@ -58,7 +57,9 @@ static void configure_leds(void)
     if (err)
     {
         printk("Cannot init LEDs (err: %d)\n", err);
+        return err;
     }
+    return 0;
 }
 
 static void bas_notify(void)
@@ -75,7 +76,7 @@ static void bas_notify(void)
     bt_bas_set_battery_level(battery_level);
 }
 
-// assume they are on the same port
+// assume they are on the same port : port 0
 static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
@@ -85,7 +86,6 @@ static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
-    // DO NOT ADD MORE!!!
 };
 static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
 BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
@@ -98,7 +98,7 @@ struct  button_submit_work_t {
 static volatile int64_t last_time_button_pressed = 0;
 
 /* GPIO buttons handler, invoked by kernel shortly after ISR*/
-void buttons_submit_handler(struct k_work * work)
+static void buttons_submit_handler(struct k_work * work)
 {
     // mask of pressed codes
     // key with code i is pressed only if bit i is set in mask
@@ -124,15 +124,15 @@ void buttons_submit_handler(struct k_work * work)
     hid_buttons_press(pressed_codes, pressed_keys_num);
     hid_buttons_release(released_codes, released_keys_num);
 
+    // TODO : ensure device does not sleep when the button is constantly pressed
     last_time_button_pressed = k_uptime_get();
 }
 
-// K_THREAD_DEFINE(gpio_button0_submit_thread, 1024, gpio_button0_submit_handler, NULL, NULL, NULL, 7, 0, 0);
 
 
 #define GPIOTE DT_NODELABEL(gpiote)
 
-void gpiote_isr(void * arg){
+static void gpiote_isr(void * arg){
     ARG_UNUSED(arg);
     uint32_t codes_mask = 0;
     for (int i = 0; i < gpio_buttons_num; ++i)
@@ -167,6 +167,7 @@ static int configure_buttons(void)
         err = gpio_pin_configure_dt(&gpio_buttons[i], GPIO_INPUT);
         if(err){
             printk("Failed to configure GPIO pin %d, error code : %d", i, err);
+            return err;
         }
 
 
@@ -194,11 +195,20 @@ int main(void)
     int err;
     int blink_status = 0;
 
-    configure_leds();
+    err = configure_leds();
+    if(err){
+        printk("Failed to configure LEDs\n");
+        return 0;
+    }
 
     button_submit_work.codes = 0;
     k_work_init_delayable(&button_submit_work.work, buttons_submit_handler);
-    configure_buttons();
+
+    err = configure_buttons();
+    if(err){
+        printk("Failed to configure buttons\n");
+        return 0;
+    }
 
     err = configure_bt();
     if (err)
@@ -231,6 +241,7 @@ int main(void)
             dk_set_led(ADV_STATUS_LED, 0);
         }
         k_sleep(K_MSEC(ADV_LED_BLINK_INTERVAL));
+
         /* Battery level simulation */
         bas_notify();
 
