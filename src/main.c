@@ -40,7 +40,10 @@
 
 
 #include "hal/nrf_gpiote.h"
-#include "hal/nrf_gpio.h"
+#include <nrfx_gpiote.h>
+#include <gpiote_nrfx.h>
+#include <hal/nrf_gpio.h>
+
 
 #define DEVICE_NAME     CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -847,38 +850,6 @@ static void bas_notify(void)
     bt_bas_set_battery_level(battery_level);
 }
 
-struct key_msg
-{
-    int code;
-    bool pressed;
-};
-
-K_MSGQ_DEFINE(gpio_button_msg, sizeof(struct key_msg), 16, 1);
-
-/* GPIO buttons handler, invoked by kernel shortly after ISR*/
-void gpio_button0_submit_handler(void* p1, void* p2, void* p3)
-{
-    struct key_msg msg;
-    while (1)
-    {
-        if (k_msgq_get(&gpio_button_msg, &msg, K_FOREVER) == 0)
-        {
-            printk("code %d status %d\n", msg.code, msg.pressed);
-
-            uint8_t last_digit = (msg.code % 10) + 30;
-            if (msg.pressed)
-            {
-                hid_buttons_press(&last_digit, 1);
-            }
-            else
-            {
-                hid_buttons_release(&last_digit, 1);
-            }
-        }
-    }
-}
-K_THREAD_DEFINE(gpio_button0_submit_thread, 1024, gpio_button0_submit_handler, NULL, NULL, NULL, 7, 0, 0);
-
 // assume they are on the same port
 static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios),
@@ -889,80 +860,102 @@ static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button8), gpios),
+    // DO NOT ADD MORE!!!
 };
 static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
-static struct gpio_callback gpio_button0_cb;
+BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
 
-#define GPIOTE DT_NODELABEL(gpiote)
+struct  button_submit_work_t {
+    struct k_work_delayable work;
+    uint32_t codes;
+} button_submit_work;
 
-/* GPIO buttons handler, called in ISR context */
-static void gpio_button0_handler(const struct device* port, struct gpio_callback* cb, gpio_port_pins_t pins)
 
+/* GPIO buttons handler, invoked by kernel shortly after ISR*/
+void buttons_submit_handler(struct k_work * work)
 {
-    int code = -1;
-    printk("abc\n");
-    for (int i = 0; i < gpio_buttons_num; ++i)
-    {
-        if (port == gpio_buttons[i].port && pins & BIT(gpio_buttons[i].pin))
-        {
-            code = i;
+    // mask of pressed codes
+    // key with code i is pressed only if bit i is set in mask
+    uint32_t codes_mask = button_submit_work.codes;
+    uint8_t pressed_codes[gpio_buttons_num];
+    uint8_t released_codes[gpio_buttons_num];
+    printk("mask %d\n", codes_mask);
+    size_t pressed_keys_num = 0;
+    size_t released_keys_num = 0;
+
+    for(uint8_t i = 0; i < gpio_buttons_num; ++i){
+        if(codes_mask & (1UL << i)){
+            if(gpio_pin_get_dt(&gpio_buttons[i]) > 0){
+                printk("btn %d pressed", i);
+                pressed_codes[pressed_keys_num++] = i + 0x1E;
+            } else {
+                printk("btn %d released", i);
+                released_codes[released_keys_num++] = i + 0x1E;
+            }
         }
     }
 
-    if (code != -1)
+    hid_buttons_press(pressed_codes, pressed_keys_num);
+    hid_buttons_release(released_codes, released_keys_num);
+}
+
+// K_THREAD_DEFINE(gpio_button0_submit_thread, 1024, gpio_button0_submit_handler, NULL, NULL, NULL, 7, 0, 0);
+
+
+#define GPIOTE DT_NODELABEL(gpiote)
+
+void gpiote_isr(void * arg){
+    ARG_UNUSED(arg);
+    uint32_t codes_mask = 0;
+    for (int i = 0; i < gpio_buttons_num; ++i)
     {
-        struct key_msg msg = {.code = code, .pressed = gpio_pin_get_dt(&gpio_buttons[code]) > 0};
-        k_msgq_put(&gpio_button_msg, &msg, K_NO_WAIT);
+        if(NRF_GPIOTE0->EVENTS_IN[i]){
+            codes_mask |= (1U << i);
+            NRF_GPIOTE0->EVENTS_IN[i] = 0x0;
+        }
     }
+    button_submit_work.codes = codes_mask;
+    // If multiple interrupts occur in short time because of bouncing,
+    // `button_submit_work` is invoked only once.
+    k_work_reschedule(&button_submit_work.work, K_MSEC(10));
 }
 
 static int configure_buttons(void)
 {
-    NRF_GPIO->LATCH = 0x0;
 
-    gpio_port_pins_t cb_mask = 0;
-    int err;
+    // Default IRQ handler from GPIOTE driver seems to always handle PORT event.
+    // According to NRF52840 datasheed, PORT event is *ALWAYS* enabled.
+    // Even if the cause of interrupt is not port event, but PORT event condition occurs,
+    // it is nevertheless handled, so we get 2 interrupts instead of 1.
+    IRQ_CONNECT(DT_IRQN(GPIOTE), DT_IRQ(GPIOTE, priority), gpiote_isr, NULL, 0);
 
-    for (int i = 0; i < gpio_buttons_num; ++i)
-    {
-        cb_mask |= (1U << gpio_buttons[i].pin);
-    }
+    uint32_t gpio_int_mask = 0;
 
-    for (int i = 1; i < gpio_buttons_num; ++i)
-    {
-        __ASSERT(gpio_buttons[i].port == gpio_buttons[0].port, "All gpio lines must be on the same port");
-    }
+    // Each button corresponds to a GPIOTE event channel (maximum 8).
+    for(int i = 0; i < gpio_buttons_num; ++i){
+        int err;
 
-
-    gpio_init_callback(&gpio_button0_cb, gpio_button0_handler, cb_mask);
-    err = gpio_add_callback(gpio_buttons[0].port, &gpio_button0_cb);
-
-
-    if (err)
-    {
-        printk("Failed to add callback");
-    }
-
-    for (int i = 0; i < gpio_buttons_num; ++i)
-    {
         err = gpio_pin_configure_dt(&gpio_buttons[i], GPIO_INPUT);
-        if (err)
-        {
-            printk("Failed to configure GPIO\n");
-            return err;
+        if(err){
+            printk("Failed to configure GPIO pin %d, error code : %d", i, err);
         }
 
 
-        nrf_gpio_cfg_sense_set(gpio_buttons[i].pin, NRF_GPIO_PIN_SENSE_LOW);
+        uint32_t absolute_pin_number  = NRF_PIN_PORT_TO_PIN_NUMBER(gpio_buttons[i].pin, 0);
 
-        err = gpio_pin_interrupt_configure_dt(&gpio_buttons[i], GPIO_INT_EDGE_BOTH);
-        if (err)
-        {
-            printk("Failed to configure interrupt\n");
-            return err;
-        }
+        // NOTE : asuming port number 0
+        nrf_gpiote_event_configure(NRF_GPIOTE0, i, absolute_pin_number, NRF_GPIOTE_POLARITY_TOGGLE);
+        nrf_gpiote_event_enable(NRF_GPIOTE, i);
+
+        // Generate DETECT signal on low GPIO level (that is, button press)
+        // Thus, wake up from System OFF.
+        nrf_gpio_cfg_sense_set(absolute_pin_number, NRF_GPIO_PIN_SENSE_LOW);
+        gpio_int_mask |= (1U << i);
     }
+
+    nrf_gpiote_int_enable(NRF_GPIOTE0, gpio_int_mask);
+
+    irq_enable(DT_IRQN(GPIOTE));
 
     return 0;
 }
@@ -1005,6 +998,9 @@ int main(void)
     int blink_status = 0;
 
     configure_leds();
+
+    button_submit_work.codes = 0;
+    k_work_init_delayable(&button_submit_work.work, buttons_submit_handler);
     configure_buttons();
 
     err = configure_bt();
@@ -1027,7 +1023,6 @@ int main(void)
 #endif /* CONFIG_SAMPLE_NFC_OOB_PAIRING */
 
     k_work_init(&pairing_work, pairing_process);
-    k_thread_start(gpio_button0_submit_thread);
 
     for (;;)
     {
