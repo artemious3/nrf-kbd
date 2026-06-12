@@ -8,9 +8,11 @@
  *
  */
 
+#include "hal/nrf_gpiote.h"
 #include "zephyr/bluetooth/gap.h"
 #include "zephyr/drivers/gpio.h"
 #include "zephyr/drivers/timer/system_timer.h"
+#include "zephyr/irq.h"
 
 #include <assert.h>
 #include <bluetooth/services/hids.h>
@@ -34,8 +36,11 @@
 #include <zephyr/sys/poweroff.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/types.h>
-
 // #include "app_nfc.h"
+
+
+#include "hal/nrf_gpiote.h"
+#include "hal/nrf_gpio.h"
 
 #define DEVICE_NAME     CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -195,28 +200,6 @@ static void advertising_start(void)
     printk("Advertising successfully started\n");
 }
 
-#if CONFIG_SAMPLE_NFC_OOB_PAIRING
-static void delayed_advertising_start(struct k_work* work)
-{ advertising_start(); }
-
-// void nfc_field_detected(void)
-// {
-// 	dk_set_led_on(NFC_LED);
-
-// 	for (int i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++) {
-// 		if (!conn_mode[i].conn) {
-// 			k_work_submit(&adv_work);
-// 			break;
-// 		}
-// 	}
-// }
-
-// void nfc_field_lost(void)
-// {
-// 	dk_set_led_off(NFC_LED);
-// }
-#endif /* CONFIG_SAMPLE_NFC_OOB_PAIRING */
-
 static void num_comp_reply(bool accept);
 
 static void pairing_process(struct k_work* work)
@@ -236,16 +219,8 @@ static void pairing_process(struct k_work* work)
 
     printk("Passkey for %s: %06u\n", addr, pairing_data.passkey);
 
+    // Temporarily always reply positively on number comparison
     num_comp_reply(true);
-
-    // if (IS_ENABLED(CONFIG_SOC_SERIES_NRF54H) || IS_ENABLED(CONFIG_SOC_SERIES_NRF54L))
-    // {
-    //     printk("Press Button 0 to confirm, Button 1 to reject.\n");
-    // }
-    // else
-    // {
-    //     printk("Press Button 1 to confirm, Button 2 to reject.\n");
-    // }
 }
 
 static void connected(struct bt_conn* conn, uint8_t err)
@@ -816,36 +791,6 @@ static int hid_buttons_release(const uint8_t* keys, size_t cnt)
     return key_report_send();
 }
 
-static void button_text_changed(bool down)
-{
-    static const uint8_t* chr = hello_world_str;
-
-    if (down)
-    {
-        hid_buttons_press(chr, 1);
-    }
-    else
-    {
-        hid_buttons_release(chr, 1);
-        if (++chr == (hello_world_str + sizeof(hello_world_str)))
-        {
-            chr = hello_world_str;
-        }
-    }
-}
-
-static void button_shift_changed(bool down)
-{
-    if (down)
-    {
-        hid_buttons_press(shift_key, 1);
-    }
-    else
-    {
-        hid_buttons_release(shift_key, 1);
-    }
-}
-
 static void num_comp_reply(bool accept)
 {
     struct pairing_data_mitm pairing_data;
@@ -877,75 +822,9 @@ static void num_comp_reply(bool accept)
     }
 }
 
-static void button_changed(uint32_t button_state, uint32_t has_changed)
-{
-    static bool pairing_button_pressed;
-
-    uint32_t buttons = button_state & has_changed;
-
-    if (k_msgq_num_used_get(&mitm_queue))
-    {
-        if (buttons & KEY_PAIRING_ACCEPT)
-        {
-            pairing_button_pressed = true;
-            num_comp_reply(true);
-
-            return;
-        }
-
-        if (buttons & KEY_PAIRING_REJECT)
-        {
-            pairing_button_pressed = true;
-            num_comp_reply(false);
-
-            return;
-        }
-    }
-
-    /* Do not take any action if the pairing button is released. */
-    if (pairing_button_pressed && (has_changed & (KEY_PAIRING_ACCEPT | KEY_PAIRING_REJECT)))
-    {
-        pairing_button_pressed = false;
-
-        return;
-    }
-
-    if (has_changed & KEY_TEXT_MASK)
-    {
-        button_text_changed((button_state & KEY_TEXT_MASK) != 0);
-    }
-    if (has_changed & KEY_SHIFT_MASK)
-    {
-        button_shift_changed((button_state & KEY_SHIFT_MASK) != 0);
-    }
-#if CONFIG_SAMPLE_NFC_OOB_PAIRING
-    if (has_changed & KEY_ADV_MASK)
-    {
-        size_t i;
-
-        for (i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++)
-        {
-            if (!conn_mode[i].conn)
-            {
-                advertising_start();
-                return;
-            }
-        }
-
-        printk("Cannot start advertising, all connections slots are"
-               " taken\n");
-    }
-#endif /* CONFIG_SAMPLE_NFC_OOB_PAIRING */
-}
-
 static void configure_leds(void)
 {
     int err;
-
-    // err = dk_buttons_init(button_changed);
-    // if (err) {
-    // 	printk("Cannot init buttons (err: %d)\n", err);
-    // }
 
     err = dk_leds_init();
     if (err)
@@ -968,75 +847,123 @@ static void bas_notify(void)
     bt_bas_set_battery_level(battery_level);
 }
 
-K_MSGQ_DEFINE(gpio_button_msg, sizeof(bool), 16, 1);
+struct key_msg
+{
+    int code;
+    bool pressed;
+};
 
-/* GPIO buttons handler, spawned by kernel shortly after ISR*/
+K_MSGQ_DEFINE(gpio_button_msg, sizeof(struct key_msg), 16, 1);
+
+/* GPIO buttons handler, invoked by kernel shortly after ISR*/
 void gpio_button0_submit_handler(void* p1, void* p2, void* p3)
 {
-    bool is_down;
+    struct key_msg msg;
     while (1)
     {
-        if (k_msgq_get(&gpio_button_msg, &is_down, K_FOREVER) == 0)
+        if (k_msgq_get(&gpio_button_msg, &msg, K_FOREVER) == 0)
         {
-            printk("submitting button status %d\n", is_down);
-            button_text_changed(is_down);
+            printk("code %d status %d\n", msg.code, msg.pressed);
+
+            uint8_t last_digit = (msg.code % 10) + 30;
+            if (msg.pressed)
+            {
+                hid_buttons_press(&last_digit, 1);
+            }
+            else
+            {
+                hid_buttons_release(&last_digit, 1);
+            }
         }
     }
 }
 K_THREAD_DEFINE(gpio_button0_submit_thread, 1024, gpio_button0_submit_handler, NULL, NULL, NULL, 7, 0, 0);
 
-static const struct gpio_dt_spec gpio_button0 = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
+// assume they are on the same port
+static const struct gpio_dt_spec gpio_buttons[] = {
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button2), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button3), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button8), gpios),
+};
+static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
 static struct gpio_callback gpio_button0_cb;
+
+#define GPIOTE DT_NODELABEL(gpiote)
 
 /* GPIO buttons handler, called in ISR context */
 static void gpio_button0_handler(const struct device* port, struct gpio_callback* cb, gpio_port_pins_t pins)
 
 {
-    if (pins & BIT(gpio_button0.pin))
+    int code = -1;
+    printk("abc\n");
+    for (int i = 0; i < gpio_buttons_num; ++i)
     {
-        int pin_state = gpio_pin_get_dt(&gpio_button0);
-        if (pin_state > 0)
+        if (port == gpio_buttons[i].port && pins & BIT(gpio_buttons[i].pin))
         {
-            // pressed
-            bool is_down = true;
-            k_msgq_put(&gpio_button_msg, &is_down, K_NO_WAIT);
+            code = i;
         }
-        else
-        {
-            // released
-            bool is_down = false;
-            k_msgq_put(&gpio_button_msg, &is_down, K_NO_WAIT);
-        }
+    }
+
+    if (code != -1)
+    {
+        struct key_msg msg = {.code = code, .pressed = gpio_pin_get_dt(&gpio_buttons[code]) > 0};
+        k_msgq_put(&gpio_button_msg, &msg, K_NO_WAIT);
     }
 }
 
 static int configure_buttons(void)
 {
+    NRF_GPIO->LATCH = 0x0;
+
+    gpio_port_pins_t cb_mask = 0;
     int err;
-    err = gpio_pin_configure_dt(&gpio_button0, GPIO_INPUT);
-    if (err)
+
+    for (int i = 0; i < gpio_buttons_num; ++i)
     {
-        printk("Failed to configure GPIO\n");
-        return err;
+        cb_mask |= (1U << gpio_buttons[i].pin);
     }
 
-    nrf_gpio_cfg_sense_set(gpio_button0.pin, NRF_GPIO_PIN_SENSE_LOW);
-
-    gpio_init_callback(&gpio_button0_cb, gpio_button0_handler, BIT(gpio_button0.pin));
-
-    err = gpio_add_callback(gpio_button0.port, &gpio_button0_cb);
-    if (err)
+    for (int i = 1; i < gpio_buttons_num; ++i)
     {
-        printk("Failed to add a callback\n");
-        return err;
+        __ASSERT(gpio_buttons[i].port == gpio_buttons[0].port, "All gpio lines must be on the same port");
     }
 
-    err = gpio_pin_interrupt_configure_dt(&gpio_button0, GPIO_INT_EDGE_BOTH);
+
+    gpio_init_callback(&gpio_button0_cb, gpio_button0_handler, cb_mask);
+    err = gpio_add_callback(gpio_buttons[0].port, &gpio_button0_cb);
+
+
     if (err)
     {
-        printk("Failed to configure interrupt\n");
-        return err;
+        printk("Failed to add callback");
     }
+
+    for (int i = 0; i < gpio_buttons_num; ++i)
+    {
+        err = gpio_pin_configure_dt(&gpio_buttons[i], GPIO_INPUT);
+        if (err)
+        {
+            printk("Failed to configure GPIO\n");
+            return err;
+        }
+
+
+        nrf_gpio_cfg_sense_set(gpio_buttons[i].pin, NRF_GPIO_PIN_SENSE_LOW);
+
+        err = gpio_pin_interrupt_configure_dt(&gpio_buttons[i], GPIO_INT_EDGE_BOTH);
+        if (err)
+        {
+            printk("Failed to configure interrupt\n");
+            return err;
+        }
+    }
+
     return 0;
 }
 
