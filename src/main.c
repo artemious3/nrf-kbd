@@ -870,6 +870,7 @@ struct  button_submit_work_t {
     uint32_t codes;
 } button_submit_work;
 
+static volatile int64_t last_time_button_pressed = 0;
 
 /* GPIO buttons handler, invoked by kernel shortly after ISR*/
 void buttons_submit_handler(struct k_work * work)
@@ -897,6 +898,8 @@ void buttons_submit_handler(struct k_work * work)
 
     hid_buttons_press(pressed_codes, pressed_keys_num);
     hid_buttons_release(released_codes, released_keys_num);
+
+    last_time_button_pressed = k_uptime_get();
 }
 
 // K_THREAD_DEFINE(gpio_button0_submit_thread, 1024, gpio_button0_submit_handler, NULL, NULL, NULL, 7, 0, 0);
@@ -927,6 +930,7 @@ static int configure_buttons(void)
     // According to NRF52840 datasheed, PORT event is *ALWAYS* enabled.
     // Even if the cause of interrupt is not port event, but PORT event condition occurs,
     // it is nevertheless handled, so we get 2 interrupts instead of 1.
+    // Hence, we set up our custom interrupt handler that does not have this flaw.
     IRQ_CONNECT(DT_IRQN(GPIOTE), DT_IRQ(GPIOTE, priority), gpiote_isr, NULL, 0);
 
     uint32_t gpio_int_mask = 0;
@@ -1038,14 +1042,11 @@ int main(void)
         /* Battery level simulation */
         bas_notify();
 
-        static uint8_t cnt = 0;
-        if (cnt == 10)
+        if(k_uptime_get() - last_time_button_pressed > 10000)
         {
-            cnt = 0;
             dk_set_led(0, 0);
-            sys_clock_disable();
+            sys_clock_disable() ;
             sys_poweroff();
         }
-        cnt++;
     }
 }
