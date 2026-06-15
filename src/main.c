@@ -39,8 +39,6 @@
 
 
 #include "hal/nrf_gpiote.h"
-#include <nrfx_gpiote.h>
-#include <gpiote_nrfx.h>
 #include <hal/nrf_gpio.h>
 
 #include "bt.h"
@@ -112,10 +110,10 @@ static void buttons_submit_handler(struct k_work * work)
     for(uint8_t i = 0; i < gpio_buttons_num; ++i){
         if(codes_mask & (1UL << i)){
             if(gpio_pin_get_dt(&gpio_buttons[i]) > 0){
-                printk("btn %d pressed", i);
+                printk("btn %d pressed\n", i);
                 pressed_codes[pressed_keys_num++] = i + 0x1E;
             } else {
-                printk("btn %d released", i);
+                printk("btn %d released\n", i);
                 released_codes[released_keys_num++] = i + 0x1E;
             }
         }
@@ -126,6 +124,8 @@ static void buttons_submit_handler(struct k_work * work)
 
     // TODO : ensure device does not sleep when the button is constantly pressed
     last_time_button_pressed = k_uptime_get();
+
+    button_submit_work.codes = 0x0;
 }
 
 
@@ -142,7 +142,7 @@ static void gpiote_isr(void * arg){
             NRF_GPIOTE0->EVENTS_IN[i] = 0x0;
         }
     }
-    button_submit_work.codes = codes_mask;
+    button_submit_work.codes |= codes_mask;
     // If multiple interrupts occur in short time because of bouncing,
     // `button_submit_work` is invoked only once.
     k_work_reschedule(&button_submit_work.work, K_MSEC(10));
