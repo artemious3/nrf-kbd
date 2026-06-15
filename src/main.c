@@ -74,7 +74,6 @@ static void bas_notify(void)
     bt_bas_set_battery_level(battery_level);
 }
 
-// assume they are on the same port : port 0
 static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
@@ -87,6 +86,9 @@ static const struct gpio_dt_spec gpio_buttons[] = {
 };
 static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
 BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
+
+static const struct device * gpio0 =  DEVICE_DT_GET(DT_NODELABEL(gpio0));
+static const struct device * gpio1 =  DEVICE_DT_GET(DT_NODELABEL(gpio1));
 
 struct  button_submit_work_t {
     struct k_work_delayable work;
@@ -103,9 +105,10 @@ static void buttons_submit_handler(struct k_work * work)
     uint32_t codes_mask = button_submit_work.codes;
     uint8_t pressed_codes[gpio_buttons_num];
     uint8_t released_codes[gpio_buttons_num];
-    printk("mask %d\n", codes_mask);
     size_t pressed_keys_num = 0;
     size_t released_keys_num = 0;
+
+    printk("mask %d\n", codes_mask);
 
     for(uint8_t i = 0; i < gpio_buttons_num; ++i){
         if(codes_mask & (1UL << i)){
@@ -170,10 +173,12 @@ static int configure_buttons(void)
             return err;
         }
 
+        // check if pin is on either of 2 ports : gpio 0 or gpio1
+        __ASSERT(gpio_buttons[i].port == gpio0 || gpio_buttons[i].port == gpio1, "Button is not on gpio0 or gpio1");
 
-        uint32_t absolute_pin_number  = NRF_PIN_PORT_TO_PIN_NUMBER(gpio_buttons[i].pin, 0);
+        uint32_t port_number = (gpio_buttons[i].port == gpio0 ? (0U) : (1U));
+        uint32_t absolute_pin_number  = NRF_PIN_PORT_TO_PIN_NUMBER(gpio_buttons[i].pin, port_number);
 
-        // NOTE : asuming port number 0
         nrf_gpiote_event_configure(NRF_GPIOTE0, i, absolute_pin_number, NRF_GPIOTE_POLARITY_TOGGLE);
         nrf_gpiote_event_enable(NRF_GPIOTE, i);
 
