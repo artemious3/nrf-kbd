@@ -222,11 +222,6 @@ int main(void)
         return 0;
     }
 
-    if (IS_ENABLED(CONFIG_SETTINGS))
-    {
-        settings_load();
-    }
-
 #if CONFIG_SAMPLE_NFC_OOB_PAIRING
     k_work_init(&adv_work, delayed_advertising_start);
     app_nfc_init();
@@ -250,11 +245,11 @@ int main(void)
         /* Battery level simulation */
         bas_notify();
 
-        if(k_uptime_get() - last_time_button_pressed > 10000)
-        {
-            dk_set_led(0, 0);
-            sys_clock_disable() ;
-            sys_poweroff();
-        }
+        // if(k_uptime_get() - last_time_button_pressed > 20000)
+        // {
+        //     dk_set_led(0, 0);
+        //     sys_clock_disable() ;
+        //     sys_poweroff();
+        // }
     }
 }
