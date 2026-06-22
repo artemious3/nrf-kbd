@@ -40,6 +40,8 @@
 
 #include "hal/nrf_gpiote.h"
 #include <hal/nrf_gpio.h>
+#include <hal/nrf_power.h>
+
 
 #include "bt.h"
 
@@ -75,14 +77,14 @@ static void bas_notify(void)
 }
 
 static const struct gpio_dt_spec gpio_buttons[] = {
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button2), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button3), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
-    GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button2), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button3), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
+    // GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
 };
 static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
 BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
@@ -184,7 +186,7 @@ static int configure_buttons(void)
 
         // Generate DETECT signal on low GPIO level (that is, button press)
         // Thus, wake up from System OFF.
-        nrf_gpio_cfg_sense_set(absolute_pin_number, NRF_GPIO_PIN_SENSE_LOW);
+        nrf_gpio_cfg_sense_set(absolute_pin_number, NRF_GPIO_PIN_SENSE_HIGH);
         gpio_int_mask |= (1U << i);
     }
 
@@ -197,6 +199,8 @@ static int configure_buttons(void)
 
 int main(void)
 {
+    printk("resetreas : %x\n", NRF_POWER->RESETREAS);
+    printk("mainregstatus : %x\n", NRF_POWER->MAINREGSTATUS);
     int err;
     int blink_status = 0;
 
@@ -229,6 +233,7 @@ int main(void)
     advertising_start();
 #endif /* CONFIG_SAMPLE_NFC_OOB_PAIRING */
 
+    int cnt = 0;
 
     for (;;)
     {
@@ -245,11 +250,12 @@ int main(void)
         /* Battery level simulation */
         bas_notify();
 
-        // if(k_uptime_get() - last_time_button_pressed > 20000)
-        // {
-        //     dk_set_led(0, 0);
-        //     sys_clock_disable() ;
-        //     sys_poweroff();
-        // }
+        if(++cnt == 10)
+        {
+            dk_set_led(0, 0);
+            NRF_POWER->RESETREAS=0x0;
+            sys_clock_disable() ;
+            sys_poweroff();
+        }
     }
 }
