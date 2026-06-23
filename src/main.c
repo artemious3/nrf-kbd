@@ -186,7 +186,7 @@ static int configure_buttons(void)
 
         // Generate DETECT signal on low GPIO level (that is, button press)
         // Thus, wake up from System OFF.
-        nrf_gpio_cfg_sense_set(absolute_pin_number, NRF_GPIO_PIN_SENSE_HIGH);
+        nrf_gpio_cfg_sense_set(absolute_pin_number, NRF_GPIO_PIN_SENSE_LOW);
         gpio_int_mask |= (1U << i);
     }
 
