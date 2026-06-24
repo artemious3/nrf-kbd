@@ -213,11 +213,11 @@ int main(void)
     button_submit_work.codes = 0;
     k_work_init_delayable(&button_submit_work.work, buttons_submit_handler);
 
-    err = configure_buttons();
-    if(err){
-        printk("Failed to configure buttons\n");
-        return 0;
-    }
+    // err = configure_buttons();
+    // if(err){
+    //     printk("Failed to configure buttons\n");
+    //     return 0;
+    // }
 
     err = configure_bt();
     if (err)
