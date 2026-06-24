@@ -28,10 +28,29 @@
 	buttons {
 		compatible = "gpio-keys";
 
+        button0: button_0 {
+            gpios = <&gpio0 31 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+        };
 		 button1: button_1 {
 		 	gpios = <&gpio0 10 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
-		 	label = "Push button switch 1";
-		 	zephyr,code = <INPUT_KEY_1>;
+		 };
+		 button2: button_2 {
+		 	gpios = <&gpio0 9 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		 };
+		 button3: button_3 {
+		 	gpios = <&gpio1 11 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		 };
+		 button4: button_4 {
+		 	gpios = <&gpio1 13 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		 };
+		 button5: button_5 {
+		 	gpios = <&gpio1 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		 };
+		 button6: button_6 {
+		 	gpios = <&gpio0 2 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		 };
+		 button7: button_7 {
+		 	gpios = <&gpio0 29 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 		 };
 	};
 };

@@ -77,14 +77,14 @@ static void bas_notify(void)
 }
 
 static const struct gpio_dt_spec gpio_buttons[] = {
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button2), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button3), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
-    // GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button2), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button3), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button5), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
 };
 static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
 BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
