@@ -48,6 +48,7 @@
 #define ADV_STATUS_LED DK_LED1
 #define CON_STATUS_LED DK_LED2
 #define ADV_LED_BLINK_INTERVAL 2000
+#define UPTIME_BEFORE_SLEEP_MS 30000
 
 static int configure_leds(void)
 {
@@ -100,6 +101,9 @@ struct  button_submit_work_t {
 
 static volatile int64_t last_time_button_pressed = 0;
 
+//  Mask of button states, used to fast check that all are released
+static uint8_t btn_states_mask = 0;
+
 /* GPIO buttons handler, invoked by kernel shortly after ISR*/
 static void buttons_submit_handler(struct k_work * work)
 {
@@ -119,10 +123,12 @@ static void buttons_submit_handler(struct k_work * work)
                 printk("btn %d pressed\n", i);
                 // safe: pressd_keys_num++ < GPIO_BUTTONS_NUM <= KEYS_PRESS_MAX
                 pressed_codes[pressed_keys_num++] = i + 0x1E;
+                btn_states_mask |= (1U << i);
             } else {
                 printk("btn %d released\n", i);
                 // safe: released_keys_num++ < GPIO_BUTTONS_NUM <= KEYS_PRESS_MAX
                 released_codes[released_keys_num++] = i + 0x1E;
+                btn_states_mask &= ~(1U << i);
             }
         }
     }
@@ -130,7 +136,6 @@ static void buttons_submit_handler(struct k_work * work)
     hid_buttons_press(pressed_codes, pressed_keys_num);
     hid_buttons_release(released_codes, released_keys_num);
 
-    // TODO : ensure device does not sleep when the button is constantly pressed
     last_time_button_pressed = k_uptime_get();
 
     button_submit_work.codes = 0x0;
@@ -236,8 +241,6 @@ int main(void)
     advertising_start();
 #endif /* CONFIG_SAMPLE_NFC_OOB_PAIRING */
 
-    int cnt = 0;
-
     for (;;)
     {
         if (is_adv)
@@ -253,7 +256,8 @@ int main(void)
         /* Battery level simulation */
         bas_notify();
 
-        if(++cnt == 10)
+        // Check if no button is held constantly and no action was performed in last UPTIME_BEFORE_SLEEP_MS
+        if(k_uptime_get() - last_time_button_pressed >= UPTIME_BEFORE_SLEEP_MS && btn_states_mask == 0x0)
         {
             dk_set_led(0, 0);
             NRF_POWER->RESETREAS=0x0;
