@@ -86,8 +86,9 @@ static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
 };
-static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
-BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
+#define GPIO_BUTTONS_NUM (sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec))
+BUILD_ASSERT(GPIO_BUTTONS_NUM <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
+BUILD_ASSERT(GPIO_BUTTONS_NUM <= KEY_PRESS_MAX, "Function `button_submit_handler` requires that GPIO_BUTTONS_NUM <= KEYS_PRESS_MAX");
 
 static const struct device * gpio0 =  DEVICE_DT_GET(DT_NODELABEL(gpio0));
 static const struct device * gpio1 =  DEVICE_DT_GET(DT_NODELABEL(gpio1));
@@ -105,20 +106,22 @@ static void buttons_submit_handler(struct k_work * work)
     // mask of pressed codes
     // key with code i is pressed only if bit i is set in mask
     uint32_t codes_mask = button_submit_work.codes;
-    uint8_t pressed_codes[gpio_buttons_num];
-    uint8_t released_codes[gpio_buttons_num];
+    uint8_t pressed_codes[KEY_PRESS_MAX];
+    uint8_t released_codes[KEY_PRESS_MAX];
     size_t pressed_keys_num = 0;
     size_t released_keys_num = 0;
 
     printk("mask %d\n", codes_mask);
 
-    for(uint8_t i = 0; i < gpio_buttons_num; ++i){
+    for(uint8_t i = 0; i < GPIO_BUTTONS_NUM; ++i){
         if(codes_mask & (1UL << i)){
             if(gpio_pin_get_dt(&gpio_buttons[i]) > 0){
                 printk("btn %d pressed\n", i);
+                // safe: pressd_keys_num++ < GPIO_BUTTONS_NUM <= KEYS_PRESS_MAX
                 pressed_codes[pressed_keys_num++] = i + 0x1E;
             } else {
                 printk("btn %d released\n", i);
+                // safe: released_keys_num++ < GPIO_BUTTONS_NUM <= KEYS_PRESS_MAX
                 released_codes[released_keys_num++] = i + 0x1E;
             }
         }
@@ -140,7 +143,7 @@ static void buttons_submit_handler(struct k_work * work)
 static void gpiote_isr(void * arg){
     ARG_UNUSED(arg);
     uint32_t codes_mask = 0;
-    for (int i = 0; i < gpio_buttons_num; ++i)
+    for (int i = 0; i < GPIO_BUTTONS_NUM; ++i)
     {
         if(NRF_GPIOTE0->EVENTS_IN[i]){
             codes_mask |= (1U << i);
@@ -166,7 +169,7 @@ static int configure_buttons(void)
     uint32_t gpio_int_mask = 0;
 
     // Each button corresponds to a GPIOTE event channel (maximum 8).
-    for(int i = 0; i < gpio_buttons_num; ++i){
+    for(int i = 0; i < GPIO_BUTTONS_NUM; ++i){
         int err;
 
         err = gpio_pin_configure_dt(&gpio_buttons[i], GPIO_INPUT);
