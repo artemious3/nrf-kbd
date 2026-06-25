@@ -86,87 +86,106 @@ static const struct gpio_dt_spec gpio_buttons[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(button6), gpios),
     GPIO_DT_SPEC_GET(DT_NODELABEL(button7), gpios),
 };
-static const size_t gpio_buttons_num = sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec);
-BUILD_ASSERT(sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) <= 8, "There are only 8 event lines in GPIOTE on NRF52840");
+
+#define GPIO_BUTTONS_NUM  ( sizeof(gpio_buttons) / sizeof(struct gpio_dt_spec) )
 
 static const struct device * gpio0 =  DEVICE_DT_GET(DT_NODELABEL(gpio0));
 static const struct device * gpio1 =  DEVICE_DT_GET(DT_NODELABEL(gpio1));
 
-struct  button_submit_work_t {
-    struct k_work_delayable work;
-    uint32_t codes;
-} button_submit_work;
+struct k_work poll_until_all_released_work;
 
-static volatile int64_t last_time_button_pressed = 0;
+static volatile uint32_t last_time_button_pressed = 0;
 
-/* GPIO buttons handler, invoked by kernel shortly after ISR*/
-static void buttons_submit_handler(struct k_work * work)
-{
-    // mask of pressed codes
-    // key with code i is pressed only if bit i is set in mask
-    uint32_t codes_mask = button_submit_work.codes;
-    uint8_t pressed_codes[gpio_buttons_num];
-    uint8_t released_codes[gpio_buttons_num];
-    size_t pressed_keys_num = 0;
-    size_t released_keys_num = 0;
 
-    printk("mask %d\n", codes_mask);
+void poll_until_all_released(struct k_work * work){
 
-    for(uint8_t i = 0; i < gpio_buttons_num; ++i){
-        if(codes_mask & (1UL << i)){
-            if(gpio_pin_get_dt(&gpio_buttons[i]) > 0){
-                printk("btn %d pressed\n", i);
-                pressed_codes[pressed_keys_num++] = i + 0x1E;
+
+    int8_t stable_change_cnt[GPIO_BUTTONS_NUM] = {0};
+    uint32_t stable_states_mask = 0;
+    uint32_t changing_states_mask = 0;
+
+    uint8_t pressed_keys[KEYS_MAX_LEN];
+    uint8_t released_keys[KEYS_MAX_LEN];
+
+    do {
+
+        size_t pressed_keys_cnt = 0;
+        size_t released_keys_cnt = 0;
+
+        // IMPORTANT TODO : fix potential out ot bounds index
+        for(int i = 0; i < GPIO_BUTTONS_NUM; ++i){
+
+            bool stable_pressed = stable_states_mask & (1UL << i);
+            bool current_pressed = gpio_pin_get_dt(&gpio_buttons[i]);
+
+            // detect state change
+            if((!stable_pressed && current_pressed)
+                ||
+                (stable_pressed && !current_pressed)
+            ){
+                printk("%d ++\n", i);
+                stable_change_cnt[i]++;
+                changing_states_mask |= (1UL << i);
             } else {
-                printk("btn %d released\n", i);
-                released_codes[released_keys_num++] = i + 0x1E;
+                // printk("%d reset\n", i);
+                stable_change_cnt[i] = 0;
+                changing_states_mask &= ~(1UL << i);
+            }
+
+            if(stable_change_cnt[i] == 2){
+                if(current_pressed){
+                    printk("report %d pressed\n", i);
+                    stable_states_mask |= (1UL << i);
+                    pressed_keys[pressed_keys_cnt++] = i + 0x1E;
+                } else {
+                    printk("report %d released\n", i);
+                    stable_states_mask &= ~(1UL << i);
+                    released_keys[released_keys_cnt++] = i + 0x1E;
+                }
+                // probably same, should be out of loop
+                // stable_states_mask ^= changing_states_mask;
+                stable_change_cnt[i] = 0;
+                changing_states_mask &= ~(1UL << i);
+                last_time_button_pressed = k_uptime_get();
             }
         }
-    }
+        // printk("stable states mask %x\n", stable_states_mask);
 
-    hid_buttons_press(pressed_codes, pressed_keys_num);
-    hid_buttons_release(released_codes, released_keys_num);
+        if(pressed_keys_cnt>0){
+            hid_buttons_press(pressed_keys, pressed_keys_cnt);
+        }
+        if(released_keys_cnt>0){
 
-    // TODO : ensure device does not sleep when the button is constantly pressed
-    last_time_button_pressed = k_uptime_get();
+            hid_buttons_release(released_keys, released_keys_cnt);
+        }
+        k_sleep(K_MSEC(5));
 
-    button_submit_work.codes = 0x0;
+    } while((changing_states_mask | stable_states_mask) != 0);
+
 }
-
 
 
 #define GPIOTE DT_NODELABEL(gpiote)
 
 static void gpiote_isr(void * arg){
-    ARG_UNUSED(arg);
-    uint32_t codes_mask = 0;
-    for (int i = 0; i < gpio_buttons_num; ++i)
-    {
-        if(NRF_GPIOTE0->EVENTS_IN[i]){
-            codes_mask |= (1U << i);
-            NRF_GPIOTE0->EVENTS_IN[i] = 0x0;
-        }
+    // only if we are not already polling
+    // printk("port event!\n");
+    if(!k_work_is_pending(&poll_until_all_released_work)){
+        printk("work submit\n");
+        k_work_submit(&poll_until_all_released_work);
     }
-    button_submit_work.codes |= codes_mask;
-    // If multiple interrupts occur in short time because of bouncing,
-    // `button_submit_work` is invoked only once.
-    k_work_reschedule(&button_submit_work.work, K_MSEC(10));
+    nrf_gpiote_event_clear(NRF_GPIOTE0, NRF_GPIOTE_EVENT_PORT);
+    NRF_P0->LATCH=~0;
+    NRF_P1->LATCH=~0;
 }
 
 static int configure_buttons(void)
 {
 
-    // Default IRQ handler from GPIOTE driver seems to always handle PORT event.
-    // According to NRF52840 datasheed, PORT event is *ALWAYS* enabled.
-    // Even if the cause of interrupt is not port event, but PORT event condition occurs,
-    // it is nevertheless handled, so we get 2 interrupts instead of 1.
-    // Hence, we set up our custom interrupt handler that does not have this flaw.
     IRQ_CONNECT(DT_IRQN(GPIOTE), DT_IRQ(GPIOTE, priority), gpiote_isr, NULL, 0);
 
-    uint32_t gpio_int_mask = 0;
 
-    // Each button corresponds to a GPIOTE event channel (maximum 8).
-    for(int i = 0; i < gpio_buttons_num; ++i){
+    for(int i = 0; i < GPIO_BUTTONS_NUM; ++i){
         int err;
 
         err = gpio_pin_configure_dt(&gpio_buttons[i], GPIO_INPUT);
@@ -181,16 +200,12 @@ static int configure_buttons(void)
         uint32_t port_number = (gpio_buttons[i].port == gpio0 ? (0U) : (1U));
         uint32_t absolute_pin_number  = NRF_PIN_PORT_TO_PIN_NUMBER(gpio_buttons[i].pin, port_number);
 
-        nrf_gpiote_event_configure(NRF_GPIOTE0, i, absolute_pin_number, NRF_GPIOTE_POLARITY_TOGGLE);
-        nrf_gpiote_event_enable(NRF_GPIOTE, i);
-
         // Generate DETECT signal on low GPIO level (that is, button press)
         // Thus, wake up from System OFF.
         nrf_gpio_cfg_sense_set(absolute_pin_number, NRF_GPIO_PIN_SENSE_LOW);
-        gpio_int_mask |= (1U << i);
     }
 
-    nrf_gpiote_int_enable(NRF_GPIOTE0, gpio_int_mask);
+    nrf_gpiote_int_enable(NRF_GPIOTE0, NRF_GPIOTE_INT_PORT_MASK);
 
     irq_enable(DT_IRQN(GPIOTE));
 
@@ -210,8 +225,7 @@ int main(void)
         return 0;
     }
 
-    button_submit_work.codes = 0;
-    k_work_init_delayable(&button_submit_work.work, buttons_submit_handler);
+    k_work_init(&poll_until_all_released_work, poll_until_all_released);
 
     err = configure_buttons();
     if(err){
@@ -250,7 +264,7 @@ int main(void)
         /* Battery level simulation */
         bas_notify();
 
-        if(++cnt == 10)
+        if(k_uptime_get() - last_time_button_pressed > 10000)
         {
             dk_set_led(0, 0);
             NRF_POWER->RESETREAS=0x0;
