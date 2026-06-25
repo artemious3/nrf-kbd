@@ -41,6 +41,8 @@
 #include "hal/nrf_gpiote.h"
 #include <hal/nrf_gpio.h>
 #include <hal/nrf_power.h>
+#include <nrfx_power.h>
+#include <nrfx.h>
 
 
 #include "bt.h"
@@ -161,6 +163,13 @@ static void gpiote_isr(void * arg){
     k_work_reschedule(&button_submit_work.work, K_MSEC(10));
 }
 
+
+static volatile bool low_power_warning_received = false;
+
+static void powwarn_handler(){
+    low_power_warning_received = true;
+}
+
 static int configure_buttons(void)
 {
 
@@ -205,12 +214,53 @@ static int configure_buttons(void)
     return 0;
 }
 
+
+#define POWER DT_NODELABEL(power)
+static void configure_pofcon(){
+
+    nrfx_power_config_t power_config  = {
+        .dcdcen = 0,
+        .dcdcenhv = 0
+    };
+    int err = nrfx_power_init(&power_config);
+    if (err) {
+        printk("Power init failed: %d\n", err);
+    }
+
+    // 2. Configure Power Failure Warning (POFWARN)
+    // Example: Trigger warning if VDD drops below 2.8V
+    nrfx_power_pofwarn_config_t pof_config = {
+        .handler = powwarn_handler,
+        .thrvddh  = NRF_POWER_POFTHRVDDH_V28,
+    };
+
+    nrfx_power_pof_init(&pof_config);
+    nrfx_power_pof_enable(&pof_config);
+    printk("POFWARN Event Handler Enabled\n");
+
+}
+
 int main(void)
 {
     printk("resetreas : %x\n", NRF_POWER->RESETREAS);
     printk("mainregstatus : %x\n", NRF_POWER->MAINREGSTATUS);
     int err;
     int blink_status = 0;
+
+    // Buttons (i.e wake up sources) must be configured before POFCON
+    err = configure_buttons();
+    if(err){
+        printk("Failed to configure buttons\n");
+        return 0;
+    }
+
+    configure_pofcon();
+    __DSB();
+    if(low_power_warning_received){
+        printk("Early power warning received, entering System OFF\n");
+        sys_clock_disable();
+        sys_poweroff();
+    }
 
     err = configure_leds();
     if(err){
@@ -221,11 +271,6 @@ int main(void)
     button_submit_work.codes = 0;
     k_work_init_delayable(&button_submit_work.work, buttons_submit_handler);
 
-    err = configure_buttons();
-    if(err){
-        printk("Failed to configure buttons\n");
-        return 0;
-    }
 
     err = configure_bt();
     if (err)
@@ -257,12 +302,15 @@ int main(void)
         bas_notify();
 
         // Check if no button is held constantly and no action was performed in last UPTIME_BEFORE_SLEEP_MS
-        if(k_uptime_get() - last_time_button_pressed >= UPTIME_BEFORE_SLEEP_MS && btn_states_mask == 0x0)
-        {
+        if((k_uptime_get() - last_time_button_pressed >= UPTIME_BEFORE_SLEEP_MS && btn_states_mask == 0x0) || low_power_warning_received){
+            if(low_power_warning_received){
+                printk("Low power!\n");
+            }
             dk_set_led(0, 0);
             NRF_POWER->RESETREAS=0x0;
             sys_clock_disable() ;
             sys_poweroff();
         }
+
     }
 }
