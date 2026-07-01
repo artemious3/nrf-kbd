@@ -47,6 +47,8 @@
 
 #include "bt.h"
 
+#include <zephyr/drivers/pwm.h>
+
 #define ADV_STATUS_LED DK_LED1
 #define CON_STATUS_LED DK_LED2
 #define ADV_LED_BLINK_INTERVAL 2000
@@ -240,12 +242,31 @@ static void configure_pofcon(){
 
 }
 
+static const struct pwm_dt_spec pwm_led0 = PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led0));
+static const struct pwm_dt_spec pwm_led1 = PWM_DT_SPEC_GET(DT_NODELABEL(pwm_led1));
+
+static void configure_pwm(){
+    if (!device_is_ready(pwm_led0.dev) || !device_is_ready(pwm_led1.dev)){
+            printk("Error: One or more PWM devices are not ready.\n");
+            return;
+    }
+
+    if(pwm_set_dt(&pwm_led0, pwm_led0.period, pwm_led0.period  * 0.5)){
+        printk("Error set PWM led 0\n");
+    }
+    if(pwm_set_dt(&pwm_led1, pwm_led1.period, pwm_led1.period  * 0.5)){
+        printk("Error set PWM led 0\n");
+    }
+}
+
 int main(void)
 {
     printk("resetreas : %x\n", NRF_POWER->RESETREAS);
     printk("mainregstatus : %x\n", NRF_POWER->MAINREGSTATUS);
     int err;
     int blink_status = 0;
+
+    configure_pwm();
 
     // Buttons (i.e wake up sources) must be configured before POFCON
     err = configure_buttons();
