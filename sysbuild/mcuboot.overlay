@@ -1,0 +1,20 @@
+zephyr_udc0: &usbd{
+    cdc_acm_uart1: cdc_acm_uart1 {
+            compatible = "zephyr,cdc-acm-uart";
+    };
+};
+
+
+/ {
+    chosen {
+		zephyr,code-partition = &boot_partition;
+		zephyr,console = &cdc_acm_uart1;
+    };
+	aliases {
+		mcuboot-button0 = &button1;
+	};
+};
+
+&uicr {
+    nfct-pins-as-gpios;
+};
